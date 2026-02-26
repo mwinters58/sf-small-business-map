@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+<title>San Francisco Map — Lurie's Small Business Spotlights</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+  crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+  crossorigin=""></script>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  #map { width: 100%; height: 100%; }
+
+  /* Custom marker */
+  .spotlight-marker {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #E1306C, #F56040);
+    border: 3px solid #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .spotlight-marker:hover {
+    transform: scale(1.2);
+    box-shadow: 0 4px 16px rgba(225,48,108,0.5);
+  }
+
+  /* Popup styling */
+  .leaflet-popup-content-wrapper {
+    border-radius: 12px !important;
+    padding: 0 !important;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2) !important;
+  }
+  .leaflet-popup-content {
+    margin: 0 !important;
+    min-width: 240px;
+    max-width: 280px;
+  }
+  .leaflet-popup-tip {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+
+  .popup-card {
+    display: flex;
+    flex-direction: column;
+  }
+  .popup-thumb {
+    width: 100%;
+    aspect-ratio: 4/3;
+    object-fit: cover;
+    display: block;
+    cursor: pointer;
+  }
+  .popup-body {
+    padding: 12px 14px;
+  }
+  .popup-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 2px;
+  }
+  .popup-hood {
+    font-size: 12px;
+    color: #6b7280;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .popup-desc {
+    font-size: 13px;
+    color: #374151;
+    line-height: 1.4;
+    margin-bottom: 10px;
+  }
+  .popup-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #9ca3af;
+    border-top: 1px solid #f0f0f0;
+    padding-top: 8px;
+  }
+  .popup-meta a {
+    color: #E1306C;
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .popup-meta a:hover {
+    text-decoration: underline;
+  }
+  .popup-likes {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .popup-cta {
+    display: block;
+    text-align: center;
+    background: linear-gradient(135deg, #E1306C, #F56040);
+    color: #fff !important;
+    text-decoration: none;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 0 0 12px 12px;
+    transition: opacity 0.15s;
+  }
+  .popup-cta:hover {
+    opacity: 0.9;
+  }
+
+  /* Dark mode popup */
+  @media (prefers-color-scheme: dark) {
+    .leaflet-popup-content-wrapper {
+      background: #1f2937 !important;
+    }
+    .leaflet-popup-tip {
+      background: #1f2937 !important;
+    }
+    .popup-name { color: #f9fafb; }
+    .popup-hood { color: #9ca3af; }
+    .popup-desc { color: #d1d5db; }
+    .popup-meta { border-top-color: #374151; color: #6b7280; }
+    .popup-meta a { color: #F56040; }
+    .spotlight-marker {
+      border-color: #374151;
+    }
+  }
+
+  /* Legend panel */
+  .legend-panel {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 1000;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 10px;
+    padding: 10px 14px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+    font-size: 13px;
+    color: #1a1a1a;
+    pointer-events: auto;
+    max-width: 220px;
+  }
+  .legend-title {
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  .legend-count {
+    font-size: 12px;
+    color: #6b7280;
+  }
+  .legend-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #E1306C, #F56040);
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .legend-panel {
+      background: rgba(31,41,55,0.95);
+      color: #f9fafb;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+    }
+    .legend-count { color: #9ca3af; }
+  }
+
+  /* Leaflet control styling overrides for dark mode */
+  @media (prefers-color-scheme: dark) {
+    .leaflet-control-zoom a {
+      background-color: #1A1A1A !important;
+      color: #F0F0F0 !important;
+      border-color: #374151 !important;
+    }
+    .leaflet-control-zoom a:hover {
+      background-color: #2A2A2A !important;
+    }
+    .leaflet-control-attribution {
+      background-color: rgba(15, 15, 15, 0.8) !important;
+      color: #9CA3AF !important;
+    }
+    .leaflet-control-attribution a {
+      color: #3B82F6 !important;
+    }
+  }
+
+  @media (prefers-color-scheme: light) {
+    .leaflet-control-attribution {
+      background-color: rgba(255, 255, 255, 0.85) !important;
+    }
+  }
+
+  /* Mobile adjustments */
+  @media (max-width: 480px) {
+    .leaflet-popup-content {
+      min-width: 200px;
+      max-width: 250px;
+    }
+    .legend-panel {
+      top: 8px;
+      right: 8px;
+      padding: 8px 10px;
+      font-size: 12px;
+    }
+    .legend-title { font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="legend-panel">
+  <div class="legend-title">🎬 Lurie's Small Business Spotlights</div>
+  <div class="legend-count"><span class="legend-dot"></span>7 locations featured</div>
+</div>
+<script>
+(function() {
+  var SF_LAT = 37.7749;
+  var SF_LNG = -122.4194;
+  var ZOOM = 13;
+
+  var lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+  var darkTiles = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+
+  var isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var tileUrl = isDark ? darkTiles : lightTiles;
+
+  var attribution =
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' +
+    ' | &copy; <a href="https://carto.com/attributions">CARTO</a>';
+
+  var map = L.map('map', {
+    center: [SF_LAT, SF_LNG],
+    zoom: ZOOM,
+    zoomControl: true,
+    scrollWheelZoom: true,
+    touchZoom: true,
+    doubleClickZoom: true,
+    dragging: true
+  });
+
+  var tileLayer = L.tileLayer(tileUrl, {
+    attribution: attribution,
+    maxZoom: 19,
+    subdomains: 'abc'
+  }).addTo(map);
+
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+      var newUrl = e.matches ? darkTiles : lightTiles;
+      tileLayer.setUrl(newUrl);
+    });
+  }
+
+  window.addEventListener('resize', function() {
+    map.invalidateSize();
+  });
+
+  // Business spotlight data
+  var businesses = [
+    {
+      name: 'The Wok Shop',
+      neighborhood: 'Chinatown',
+      lat: 37.7942,
+      lng: -122.407,
+      description: 'Tane has run this iconic wok shop for 50+ years in Chinatown',
+      username: 'danielluriesf',
+      date: '2024-05-23',
+      likes: 50,
+      url: 'https://www.instagram.com/reel/C7UiC8WPyV7/',
+      thumbnail_url: 'https://scontent-iad3-1.cdninstagram.com/v/t51.71878-15/502735497_626991263134574_3174418724066621837_n.jpg?stp=dst-jpg_e35_tt6&_nc_cat=104&ccb=7-5&_nc_sid=18de74&efg=eyJlZmdfdGFnIjoiQ0xJUFMuYmVzdF9pbWFnZV91cmxnZW4uQzEifQ%3D%3D&_nc_ohc=Rod6i-QEt0IQ7kNvwHNw7G7&_nc_oc=AdmP6i4x1uoSiwyyqywK_SbAF5VcXVNrNGnqqY_n8iOOWleG90DhcBO_htrqgX-naHE&_nc_zt=23&_nc_ht=scontent-iad3-1.cdninstagram.com&_nc_gid=9mFhMhF7Qc3xsCUIsX375Q&oh=00_Aft2brmi3BFioFn_KbezKmEOM-v2TZPICmeYnA-4_ElpXQ&oe=69A58126'
+    },
+    {
+      name: 'North Beach First Fridays',
+      neighborhood: 'North Beach',
+      lat: 37.8005,
+      lng: -122.41,
+      description: 'Mayor Lurie visiting shops, galleries, and restaurants during First Fridays',
+      username: 'danielluriesf',
+      date: '2025-03-08',
+      likes: 2298,
+      url: 'https://www.instagram.com/reel/DG7JZeVxgM9/',
+      thumbnail_url: 'https://scontent-iad3-2.cdninstagram.com/v/t51.71878-15/499269195_1375089340211212_6363157393721278267_n.jpg?stp=dst-jpg_e35_tt6&_nc_cat=106&ccb=7-5&_nc_sid=18de74&efg=eyJlZmdfdGFnIjoiQ0xJUFMuYmVzdF9pbWFnZV91cmxnZW4uQzEifQ%3D%3D&_nc_ohc=0zkb1IWKRwwQ7kNvwH2mVXk&_nc_oc=Admr3bVMO-GD6Ha9Dmb9aRYfsfbTkFaW5mSIKxEdqkmKrcYzt1Jn_VduvNeeOYHGiFA&_nc_zt=23&_nc_ht=scontent-iad3-2.cdninstagram.com&_nc_gid=9mFhMhF7Qc3xsCUIsX375Q&oh=00_Afvask93-j-N95o0duMaHQBHyzQmiOwlqmKga2wJ8luzQQ&oe=69A59CA5'
+    },
+    {
+      name: 'On Waverly (Small Business Week)',
+      neighborhood: 'Chinatown',
+      lat: 37.7948,
+      lng: -122.4068,
+      description: 'SF Small Business Week pop-up at City Hall with Mayor Lurie',
+      username: 'onwaverly',
+      date: '2025-05-07',
+      likes: 223,
+      url: 'https://www.instagram.com/reel/DJVpF2ss55D/',
+      thumbnail_url: 'https://scontent-iad3-2.cdninstagram.com/v/t51.71878-15/502184188_1361746045109825_4809116408247170360_n.jpg?stp=dst-jpg_e35_tt6&_nc_cat=100&ccb=7-5&_nc_sid=18de74&efg=eyJlZmdfdGFnIjoiQ0xJUFMuYmVzdF9pbWFnZV91cmxnZW4uQzEifQ%3D%3D&_nc_ohc=6uLDOsVVjjIQ7kNvwGRa4m2&_nc_oc=Adk_CyFel5-2Uyv0egyiTC-l9Or0qGeT67aRVyxIYlpRyTSUSD4Bs4WTxJtsDBiLzbw&_nc_zt=23&_nc_ht=scontent-iad3-2.cdninstagram.com&_nc_gid=IIyj6wBMvZilcpUtXNPPlw&oh=00_AfuWo6F8MnkBnNfGz472sDzsApCV8r38vBPscn0YAwobew&oe=69A5ACDD'
+    },
+    {
+      name: 'Made In The City',
+      neighborhood: 'Mission District',
+      lat: 37.7526,
+      lng: -122.4182,
+      description: 'Grand opening of SF apparel brand on 24th Street, with Mayor Lurie presenting Certificate of Honor',
+      username: 'made.in.the.city',
+      date: '2025-08-05',
+      likes: 1030,
+      url: 'https://www.instagram.com/reel/DM9DN1WJSNw/',
+      thumbnail_url: 'https://scontent-iad3-1.cdninstagram.com/v/t51.82787-15/527355918_18491998978066033_5089266159202412604_n.jpg?stp=dst-jpg_e35_tt6&_nc_cat=101&ccb=7-5&_nc_sid=18de74&efg=eyJlZmdfdGFnIjoiQ0xJUFMuYmVzdF9pbWFnZV91cmxnZW4uQzEifQ%3D%3D&_nc_ohc=6DuOZR35v3YQ7kNvwHib9HW&_nc_oc=AdmZF8ntLRAEzOt0-N4R37jkXEeHWCKmU9cXshuk4Z8QVQq2W5zcVcr2z7ECD8DpcPU&_nc_zt=23&_nc_ht=scontent-iad3-1.cdninstagram.com&_nc_gid=IIyj6wBMvZilcpUtXNPPlw&oh=00_Aft1PuAGB4jofRFrvvAM2rXDc71kI2pw53eHL7Az71wWBQ&oe=69A57BE1'
+    },
+    {
+      name: 'Corzetti',
+      neighborhood: 'Union Square',
+      lat: 37.787,
+      lng: -122.4095,
+      description: 'Modern Italian restaurant at Geary &amp; Mason. Opened 2023, part of Back of House restaurant group',
+      username: 'danielluriesf',
+      date: '2025-11-02',
+      likes: 1607,
+      url: 'https://www.instagram.com/reel/DQj4axbCZLF/',
+      thumbnail_url: 'https://scontent-iad3-1.cdninstagram.com/v/t51.71878-15/572136921_1214737380710608_7620894154148774112_n.jpg?stp=dst-jpg_e35_tt6&_nc_cat=109&ccb=7-5&_nc_sid=18de74&efg=eyJlZmdfdGFnIjoiQ0xJUFMuYmVzdF9pbWFnZV91cmxnZW4uQzEifQ%3D%3D&_nc_ohc=5DgpuJ4koZIQ7kNvwFUJ6Tb&_nc_oc=AdlVXlHtr_Z3myJOCM5dDL9E9RMlmV7N6MQNQ84vlgn3fzOCi0okc9Dc_efepx-vWYg&_nc_zt=23&_nc_ht=scontent-iad3-1.cdninstagram.com&_nc_gid=9mFhMhF7Qc3xsCUIsX375Q&oh=00_AfsMUqJLJXCUnyrEctFyW0vNmZ7VjuphN7OCpiS5rPPolA&oe=69A59556'
+    },
+    {
+      name: 'Le Sandwich',
+      neighborhood: 'North Beach',
+      lat: 37.8003,
+      lng: -122.4113,
+      description: '752 Columbus Ave. Chef Elias, 38 years in the trade. Famous Toscana sandwich',
+      username: 'danielluriesf',
+      date: '2026-02-18',
+      likes: 3621,
+      url: 'https://www.instagram.com/reel/DU6tW5vkmCo/',
+      thumbnail_url: 'https://scontent-iad3-1.cdninstagram.com/v/t51.71878-15/632086623_1607256093853797_6534287924405393469_n.jpg?stp=dst-jpg_e35_tt6&_nc_cat=102&ccb=7-5&_nc_sid=18de74&efg=eyJlZmdfdGFnIjoiQ0xJUFMuYmVzdF9pbWFnZV91cmxnZW4uQzEifQ%3D%3D&_nc_ohc=Cfkh_rXyJJkQ7kNvwHwcEKO&_nc_oc=AdmDN_wI9jMs8uqTWTkBR9So22YgkL4YtDUUffNmyYbvbSIA7CWpWOQdZC5_g1GAFho&_nc_zt=23&_nc_ht=scontent-iad3-1.cdninstagram.com&_nc_gid=IIyj6wBMvZilcpUtXNPPlw&oh=00_AfsIUUMFnwsVAvfPYKLdo2f1uzwkHx-EFBcLXe5mQzsZ0g&oe=69A5A054'
+    },
+    {
+      name: 'Moya Ethiopian',
+      neighborhood: 'SoMa / Civic Center',
+      lat: 37.7755,
+      lng: -122.413,
+      description: 'Ethiopian restaurant at 9th &amp; Minna, run by Mellay. Founded 14 years ago by her mother',
+      username: 'danielluriesf',
+      date: '2026-02-25',
+      likes: 865,
+      url: 'https://www.instagram.com/reel/DVKVhq0gUb_/',
+      thumbnail_url: 'https://scontent-iad3-2.cdninstagram.com/v/t51.71878-15/641664058_1878815212995849_4025425592454827314_n.jpg?stp=dst-jpg_e35_tt6&_nc_cat=111&ccb=7-5&_nc_sid=18de74&efg=eyJlZmdfdGFnIjoiQ0xJUFMuYmVzdF9pbWFnZV91cmxnZW4uQzEifQ%3D%3D&_nc_ohc=iLManC5_RIcQ7kNvwE1JU-C&_nc_oc=AdmdwGuOL4iw9ANnDiWxuTuOVjQbthjsUDZixdq8WlFFsOUtoPn7R-Nu9v9buYqJDL0&_nc_zt=23&_nc_ht=scontent-iad3-2.cdninstagram.com&_nc_gid=W4Mp4EcdESCKIlj3u0AGfw&oh=00_AfvK6LmKjOVn9Ul7yB1M5aZ5UWaq4bL2eMwZ4RTQIYaKdw&oe=69A59D42'
+    }
+  ];
+
+  // Format likes count
+  function fmtLikes(n) {
+    if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return n.toString();
+  }
+
+  // Format date
+  function fmtDate(d) {
+    var parts = d.split('-');
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[parseInt(parts[1], 10) - 1] + ' ' + parseInt(parts[2], 10) + ', ' + parts[0];
+  }
+
+  // Add markers
+  businesses.forEach(function(b) {
+    var icon = L.divIcon({
+      className: '',
+      html: '<div class="spotlight-marker">🎬</div>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      popupAnchor: [0, -18]
+    });
+
+    var popupHtml =
+      '<div class="popup-card">' +
+        '<a href="' + b.url + '" target="_blank" rel="noopener">' +
+          '<img class="popup-thumb" src="' + b.thumbnail_url + '" alt="' + b.name + '" loading="lazy" onerror="this.style.display=\'none\'">' +
+        '</a>' +
+        '<div class="popup-body">' +
+          '<div class="popup-name">' + b.name + '</div>' +
+          '<div class="popup-hood">' + b.neighborhood + '</div>' +
+          '<div class="popup-desc">' + b.description + '</div>' +
+          '<div class="popup-meta">' +
+            '<span>@<a href="https://instagram.com/' + b.username + '" target="_blank" rel="noopener">' + b.username + '</a> · ' + fmtDate(b.date) + '</span>' +
+            '<span class="popup-likes">❤️ ' + fmtLikes(b.likes) + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<a class="popup-cta" href="' + b.url + '" target="_blank" rel="noopener">▶ Watch Reel on Instagram</a>' +
+      '</div>';
+
+    L.marker([b.lat, b.lng], { icon: icon })
+      .addTo(map)
+      .bindPopup(popupHtml, {
+        maxWidth: 280,
+        minWidth: 240,
+        closeButton: true,
+        className: ''
+      });
+  });
+})();
+</script>
+</body>
+</html>
